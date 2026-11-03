@@ -1,0 +1,24 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "demo",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": [
+        "vite",
+        "demo",
+        "--config",
+        "demo/vite.config.ts"
+      ],
+      "port": 5199
+    },
+    {
+      "name": "relay",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "server/dist/bin.js"
+      ],
+      "port": 8787
+    }
+  ]
+}

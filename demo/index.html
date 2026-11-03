@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+        <title>liteboard demo</title>
+        <style>
+            :root {
+                --bg: #f8f9fa;
+                --fg: #212529;
+                --panel: #ffffff;
+                --line: #dee2e6;
+            }
+            :root.dark {
+                --bg: #121212;
+                --fg: #e9ecef;
+                --panel: #1e1e22;
+                --line: #343a40;
+            }
+            * { box-sizing: border-box; }
+            html, body { margin: 0; height: 100%; background: var(--bg); color: var(--fg); font: 14px system-ui, sans-serif; }
+            body { display: flex; flex-direction: column; }
+            header {
+                display: flex; flex-wrap: wrap; gap: 6px; align-items: center;
+                padding: 8px 12px; background: var(--panel); border-bottom: 1px solid var(--line);
+            }
+            header strong { margin-right: 8px; }
+            header button, header select {
+                font: inherit; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--line);
+                background: var(--bg); color: inherit; cursor: pointer;
+            }
+            #stats { margin-left: auto; font-variant-numeric: tabular-nums; opacity: 0.75; }
+            .sync { flex-basis: 100%; font-size: 12px; opacity: 0.8; display: flex; gap: 16px; flex-wrap: wrap; }
+            #errors { flex-basis: 100%; font-size: 12px; color: #fff; background: #c92a2a; padding: 4px 8px; border-radius: 6px; }
+            main { flex: 1; display: flex; min-height: 0; }
+            .board { flex: 1; position: relative; min-width: 0; }
+            .board + .board { border-left: 1px solid var(--line); }
+            .board > .label {
+                position: absolute; right: 8px; top: 8px; z-index: 4; font-size: 12px;
+                padding: 2px 8px; border-radius: 99px; background: var(--panel); border: 1px solid var(--line);
+            }
+            .lesson { width: 560px; padding: 24px 32px; line-height: 1.6; color: var(--fg); opacity: 0.85; }
+            .lesson h2 { margin-top: 0; }
+            .lesson .eq { font-family: Georgia, serif; font-size: 22px; }
+        </style>
+    </head>
+    <body>
+        <header>
+            <strong>liteboard</strong>
+            <select id="board" title="Board">
+                <option value="lesson-1">Lesson 1</option>
+                <option value="lesson-2">Lesson 2</option>
+            </select>
+            <button id="theme">Dark</button>
+            <button id="readonly">Read-only: off</button>
+            <button id="peer">Show peer</button>
+            <button id="stress">+2000 strokes</button>
+            <button id="fit">Fit</button>
+            <button id="clear">Clear</button>
+            <button id="png">Export PNG</button>
+            <span id="stats"></span>
+            <div class="sync"><span id="syncA"></span> <span id="syncB"></span></div>
+            <div id="errors" hidden></div>
+        </header>
+        <main>
+            <div class="board" id="a"></div>
+        </main>
+        <script type="module" src="./main.ts"></script>
+    </body>
+</html>

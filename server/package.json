@@ -1,0 +1,28 @@
+{
+  "name": "liteboard-server",
+  "version": "0.1.0",
+  "private": true,
+  "description": "WebSocket relay for liteboard: rooms, batched Postgres writes, acknowledged delivery.",
+  "license": "MIT",
+  "type": "module",
+  "dependencies": {
+    "pg": "^8.23.1",
+    "uWebSockets.js": "github:uNetworking/uWebSockets.js#v20.52.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.5",
+    "@types/pg": "^8.23.1"
+  },
+  "main": "./dist/index.js",
+  "bin": {
+    "liteboard-server": "./dist/bin.js"
+  },
+  "scripts": {
+    "build": "tsup",
+    "start": "node dist/bin.js",
+    "dev": "npm run build && node dist/bin.js"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

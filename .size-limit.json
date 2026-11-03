@@ -1,0 +1,26 @@
+[
+  {
+    "name": "core",
+    "path": "dist/index.js",
+    "import": "{ createWhiteboard }",
+    "limit": "30 kB"
+  },
+  {
+    "name": "core + toolbar",
+    "path": [
+      "dist/index.js",
+      "dist/ui.js"
+    ],
+    "import": {
+      "dist/index.js": "{ createWhiteboard }",
+      "dist/ui.js": "{ mountToolbar }"
+    },
+    "limit": "45 kB"
+  },
+  {
+    "name": "sync client",
+    "path": "dist/sync.js",
+    "import": "{ connect }",
+    "limit": "10 kB"
+  }
+]
