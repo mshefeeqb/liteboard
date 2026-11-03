@@ -95,5 +95,21 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/mshefeeqb/liteboard.git"
+  },
+  "typesVersions": {
+    "*": {
+      "ui": [
+        "dist/ui.d.ts"
+      ],
+      "react": [
+        "dist/react.d.ts"
+      ],
+      "sync": [
+        "dist/sync.d.ts"
+      ],
+      "excalidraw": [
+        "dist/excalidraw.d.ts"
+      ]
+    }
   }
 }
