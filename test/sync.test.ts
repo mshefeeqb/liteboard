@@ -185,3 +185,21 @@ describe('no data loss under failure', () => {
         for (const id of a.snapshot().map((s) => s.split('@')[0])) expect(savedIds.has(id)).toBe(true);
     }, 30_000);
 });
+
+describe('presenting', () => {
+    it('reports joins and lets a follower follow whoever presents', async () => {
+        const relay = await startRelay();
+        const a = new HeadlessBoard('follow');
+        const b = new HeadlessBoard('follow');
+        const ca = client(relay, a, 'teacher');
+        const cb = client(relay, b, 'student');
+        const joins: number[] = [];
+        cb.on('joined', (j) => joins.push(j.elements));
+        await until(() => ca.peers.length === 1 && cb.peers.length === 1, 8000, 'presence');
+        expect(joins).toEqual([0]);
+        cb.follow('any');
+        ca.present(true);
+        a.setCamera({ x: 120, y: 340, zoom: 1.5 });
+        await until(() => b.camera.x === 120 && b.camera.y === 340 && b.camera.zoom === 1.5, 8000, 'follow');
+    });
+});

@@ -53,6 +53,11 @@ export interface SyncEvents {
     peers: SyncPeer[];
     /** Changes not yet confirmed saved; 0 means everything is safe. */
     pending: number;
+    /**
+     * The board finished loading after a join or board switch. `elements` is
+     * how many it has, e.g. to import old content into an empty board.
+     */
+    joined: { boardId: string; full: boolean; elements: number };
     error: { code: string; message: string };
 }
 
@@ -119,7 +124,7 @@ export class SyncClient {
     private presenting = false;
     private cameraDirty = false;
     private lastCameraSent = 0;
-    private following: number | null = null;
+    private following: number | 'any' | null = null;
 
     constructor(
         private target: SyncTarget,
@@ -210,8 +215,11 @@ export class SyncClient {
         }
     }
 
-    /** Follows a peer's camera, or stops with null. */
-    follow(peer: number | null): void {
+    /**
+     * Follows a peer's camera; `'any'` follows whoever is presenting; null
+     * stops following.
+     */
+    follow(peer: number | 'any' | null): void {
         this.following = peer;
     }
 
@@ -490,6 +498,11 @@ export class SyncClient {
                 this.events.emit('peers', this.peers);
                 this.setStatus('online');
                 this.sendEntries(m.boardId);
+                this.events.emit('joined', {
+                    boardId: m.boardId,
+                    full: m.full,
+                    elements: this.target.store.elements().length,
+                });
                 return;
             }
             case Msg.Ack: {
@@ -547,7 +560,7 @@ export class SyncClient {
                 remote?.laser(String(m.peer), m.points, m.start);
                 return;
             case Msg.Camera:
-                if (this.following === m.peer) {
+                if (this.following === m.peer || this.following === 'any') {
                     this.target.setCamera?.({ x: m.x, y: m.y, zoom: m.zoom });
                 }
                 return;

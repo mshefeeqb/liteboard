@@ -208,7 +208,8 @@ sync.on('status', (s) => {}); // 'connecting' | 'online' | 'offline' | 'denied' 
 sync.on('pending', (n) => {}); // changes not yet confirmed saved; 0 = all safe
 sync.on('peers', (peers) => {}); // who else is on the board
 sync.present(true); // others can follow your camera…
-sync.follow(peerNo); // …and you can follow theirs
+sync.follow(peerNo); // …and you can follow theirs ('any' follows whoever presents)
+sync.on('joined', ({ boardId, elements }) => {}); // a board finished loading
 sync.close();
 ```
 
