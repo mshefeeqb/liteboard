@@ -38,7 +38,8 @@
       "import": "./dist/sync.js",
       "require": "./dist/sync.cjs"
     },
-    "./fonts/*": "./fonts/*"
+    "./fonts/*": "./fonts/*",
+    "./package.json": "./package.json"
   },
   "scripts": {
     "dev": "vite demo --config demo/vite.config.ts",
@@ -49,7 +50,8 @@
     "size": "npm run build && size-limit",
     "relay": "cd server && npm run build && node dist/bin.js",
     "smoke": "vite-node scripts/smoke.ts --",
-    "setup": "npm install && npm --prefix server install"
+    "setup": "npm install && npm --prefix server install",
+    "prepare": "npm run build"
   },
   "peerDependencies": {
     "react": ">=17",
@@ -89,5 +91,9 @@
     "typescript": "^5.9.3",
     "vite": "^6.4.5",
     "vitest": "^3.2.7"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mshefeeqb/liteboard.git"
   }
 }
