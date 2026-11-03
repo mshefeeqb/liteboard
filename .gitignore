@@ -5,3 +5,6 @@ dist
 server/node_modules
 server/dist
 .private/
+server/deploy/relay.env
+server/deploy/.env
+server/deploy/certs/

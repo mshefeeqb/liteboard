@@ -1,0 +1,9 @@
+# wss://{$RELAY_DOMAIN} → the relay. Caddy obtains and renews the TLS
+# certificate itself; ports 80 and 443 must be open to the internet.
+{$RELAY_DOMAIN} {
+	reverse_proxy {$RELAY_UPSTREAM:relay:8787} {
+		# Keep open boards connected when this file is reloaded.
+		stream_close_delay 10m
+	}
+	header -Server
+}

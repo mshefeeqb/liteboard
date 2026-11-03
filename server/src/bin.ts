@@ -6,7 +6,10 @@ import { MemoryStorage, type BoardStorage } from './storage';
 /**
  * Runs a relay from environment variables:
  *   PORT                    default 8787
+ *   HOST                    interface to listen on; default all (IPv4 and IPv6).
+ *                           127.0.0.1 behind a reverse proxy on the same machine.
  *   DATABASE_URL            Postgres; without it changes live in memory only
+ *   DATABASE_POOL_MAX       Postgres connections, default 10
  *   LITEBOARD_JWT_SECRET    HS256 secret; without it anyone may open any board
  */
 async function main() {
@@ -17,7 +20,13 @@ async function main() {
     let pool: { end(): Promise<void> } | null = null;
     if (process.env.DATABASE_URL) {
         const { default: pg } = await import('pg');
-        const p = new pg.Pool({ connectionString: process.env.DATABASE_URL, max: 10 });
+        const p = new pg.Pool({
+            connectionString: process.env.DATABASE_URL,
+            max: Number(process.env.DATABASE_POOL_MAX ?? 10),
+        });
+        // A pooler or failover can drop idle connections; without a listener
+        // that error would end the process. The pool reconnects on next use.
+        p.on('error', (err) => log('postgres idle connection error', { err: String(err) }));
         pool = p;
         const pgStorage = new PostgresStorage(p);
         await pgStorage.migrate();
@@ -33,6 +42,7 @@ async function main() {
     const relay = await createRelay({
         storage,
         port: Number(process.env.PORT ?? 8787),
+        host: process.env.HOST || undefined,
         authorize: secret ? jwtAuthorizer(secret) : undefined,
         log,
     });

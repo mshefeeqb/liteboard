@@ -1,0 +1,29 @@
+# The relay as a systemd service, without Docker. See server/DEPLOY.md.
+# Expects the built relay in /opt/liteboard/server and settings in
+# /etc/liteboard/relay.env (with HOST=127.0.0.1 behind a local Caddy).
+
+[Unit]
+Description=liteboard relay
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=liteboard
+Group=liteboard
+WorkingDirectory=/opt/liteboard/server
+EnvironmentFile=/etc/liteboard/relay.env
+Environment=NODE_ENV=production
+ExecStart=/usr/bin/node dist/bin.js
+Restart=always
+RestartSec=2
+# SIGTERM makes the relay write everything buffered before it exits.
+KillSignal=SIGTERM
+TimeoutStopSec=30
+LimitNOFILE=65536
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

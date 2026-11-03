@@ -1,0 +1,52 @@
+# The relay behind Caddy on one machine. Caddy gets a Let's Encrypt
+# certificate for RELAY_DOMAIN and serves wss:// on port 443; the relay itself
+# is reachable only inside this network.
+#
+#   cd server/deploy
+#   cp relay.env.example relay.env     # then fill it in
+#   RELAY_DOMAIN=board.example.com docker compose up -d --build
+
+services:
+  relay:
+    build:
+      context: ../..
+      dockerfile: server/Dockerfile
+    image: liteboard-relay
+    restart: unless-stopped
+    env_file: relay.env
+    environment:
+      HOST: 0.0.0.0
+      PORT: '8787'
+    volumes:
+      # Postgres CA certificate, if DATABASE_URL uses sslrootcert=/certs/db-ca.crt
+      - ./certs:/certs:ro
+    expose:
+      - '8787'
+    # Time to write buffered changes on shutdown.
+    stop_grace_period: 30s
+    ulimits:
+      nofile: 65536
+    logging:
+      driver: json-file
+      options: { max-size: 10m, max-file: '5' }
+
+  caddy:
+    image: caddy:2.8.4
+    restart: unless-stopped
+    depends_on: [relay]
+    ports:
+      - '80:80'
+      - '443:443'
+    environment:
+      RELAY_DOMAIN: ${RELAY_DOMAIN:?set RELAY_DOMAIN, e.g. board.example.com}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    logging:
+      driver: json-file
+      options: { max-size: 10m, max-file: '5' }
+
+volumes:
+  caddy_data:
+  caddy_config:
