@@ -18,7 +18,6 @@ export default defineConfig([
             excalidraw: 'src/excalidraw/index.ts',
             sync: 'src/sync/index.ts',
         },
-        clean: true,
     },
     {
         ...shared,
