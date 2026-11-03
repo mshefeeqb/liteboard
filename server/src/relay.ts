@@ -1,4 +1,13 @@
-import uWS from 'uWebSockets.js';
+import { createRequire } from 'node:module';
+import type * as UWS from 'uWebSockets.js';
+
+// Browsers send every cookie for the host with the WebSocket handshake,
+// whatever the port, so a relay next to a signed-in app receives the app's
+// auth cookies (Supabase's alone are several KB). uWS refuses headers above
+// 4 KB with "431" unless this is raised, and reads it once when it loads,
+// which is why it is loaded here rather than imported.
+process.env.UWS_HTTP_MAX_HEADERS_SIZE ??= String(64 * 1024);
+const uWS = createRequire(import.meta.url)('uWebSockets.js') as typeof UWS;
 import { nanoid } from '../../src/model/geometry';
 import {
     decode,
@@ -63,7 +72,7 @@ interface Room {
 
 interface Conn {
     id: number;
-    ws: uWS.WebSocket<ConnRef> | null;
+    ws: UWS.WebSocket<ConnRef> | null;
     room: Room | null;
     writeOnly: boolean;
     canWrite: boolean;
@@ -434,7 +443,7 @@ export async function createRelay(opts: RelayOptions): Promise<Relay> {
     });
 
     const port = await new Promise<number>((resolve, reject) => {
-        const done = (token: uWS.us_listen_socket | false) => {
+        const done = (token: UWS.us_listen_socket | false) => {
             if (!token) {
                 reject(new Error(`Port ${opts.port} is in use (is another relay running?)`));
             } else {
@@ -445,13 +454,13 @@ export async function createRelay(opts: RelayOptions): Promise<Relay> {
         // would split a board's users between them without any error.
         // Without a host it listens on IPv4 and IPv6, so `localhost` works
         // whichever address the browser tries first.
-        const exclusive = 1 as uWS.ListenOptions; // LIBUS_LISTEN_EXCLUSIVE_PORT
+        const exclusive = 1 as UWS.ListenOptions; // LIBUS_LISTEN_EXCLUSIVE_PORT
         if (opts.host) {
             // The runtime accepts (host, port, options, cb); the typings don't list it.
             const listenOn = app.listen as unknown as (
                 host: string,
                 port: number,
-                options: uWS.ListenOptions,
+                options: UWS.ListenOptions,
                 cb: typeof done,
             ) => void;
             listenOn.call(app, opts.host, opts.port ?? 0, exclusive, done);

@@ -235,3 +235,35 @@ describe('startup problems', () => {
         await until(() => c.pending === 0, 8000, 'ack');
     });
 });
+
+describe('handshake headers', () => {
+    it('accepts the large cookie headers of a signed-in app on the same host', async () => {
+        const relay = await startRelay();
+        const { request } = await import('node:http');
+        const status = (cookieBytes: number) =>
+            new Promise<number>((resolve, reject) => {
+                const req = request({
+                    host: '127.0.0.1',
+                    port: relay.port,
+                    path: '/?session=s',
+                    headers: {
+                        Connection: 'Upgrade',
+                        Upgrade: 'websocket',
+                        'Sec-WebSocket-Version': '13',
+                        'Sec-WebSocket-Key': 'dGhlIHNhbXBsZSBub25jZQ==',
+                        Cookie: `sb-auth-token=${'a'.repeat(cookieBytes)}`,
+                    },
+                });
+                req.on('upgrade', (res, socket) => {
+                    socket.destroy();
+                    resolve(res.statusCode ?? 0);
+                });
+                req.on('response', (res) => resolve(res.statusCode ?? 0));
+                req.on('error', reject);
+                req.end();
+            });
+        expect(await status(100)).toBe(101);
+        expect(await status(12_000)).toBe(101);
+        expect(await status(40_000)).toBe(101);
+    });
+});
