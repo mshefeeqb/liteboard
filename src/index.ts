@@ -6,6 +6,9 @@ export { encodeScene, decodeScene, encodeElement, decodeElement } from './model/
 export { Store, wins } from './model/store';
 export { MIN_ZOOM, MAX_ZOOM } from './camera';
 export { RemoteLayer } from './live';
+export { fonts, fontStack, loadFont } from './fonts';
+export type { FontSource } from './fonts';
+export { presets } from './presets';
 export type { PeerInfo } from './live';
 export type {
     Camera,

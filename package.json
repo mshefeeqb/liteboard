@@ -6,7 +6,8 @@
   "type": "module",
   "sideEffects": false,
   "files": [
-    "dist"
+    "dist",
+    "fonts"
   ],
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
@@ -36,7 +37,8 @@
       "types": "./dist/sync.d.ts",
       "import": "./dist/sync.js",
       "require": "./dist/sync.cjs"
-    }
+    },
+    "./fonts/*": "./fonts/*"
   },
   "scripts": {
     "dev": "vite demo --config demo/vite.config.ts",

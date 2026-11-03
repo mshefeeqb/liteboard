@@ -1,6 +1,7 @@
 import { createWhiteboard, type Whiteboard } from 'liteboard';
 import { connect, type SyncClient } from 'liteboard/sync';
 import { mountToolbar } from 'liteboard/ui';
+import { mountFeatures } from './features';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
@@ -59,7 +60,8 @@ const a = createWhiteboard($('a'), {
     style: { strokeWidth: 1 },
     penResetsWidth: true,
 });
-mountToolbar(a);
+const toolbarA = mountToolbar(a);
+mountFeatures($('features'), a, toolbarA);
 const syncA = connect(a, { url: RELAY_URL, user: { id: myName, name: myName, color: myColor } });
 trackStatus(syncA, $('syncA'), myName);
 

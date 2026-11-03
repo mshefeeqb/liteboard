@@ -247,15 +247,17 @@ export function wrapText(txt: string, fontSize: number, width: number, family?: 
         }
         let line = '';
         for (const word of para.split(/(\s+)/)) {
+            if (!word) continue;
             const next = line + word;
-            if (line && ctx.measureText(next).width > width && word.trim()) {
+            // Break before a word that doesn't fit; spaces never start a line.
+            if (line.trim() && word.trim() && ctx.measureText(next).width > width) {
                 out.push(line.trimEnd());
                 line = word;
             } else {
-                line = next;
+                line = line.trim() ? next : word.trimStart();
             }
             // A single word wider than the note is broken by characters.
-            while (ctx.measureText(line).width > width && line.length > 1) {
+            while (ctx.measureText(line.trimEnd()).width > width && line.trim().length > 1) {
                 let cut = line.length - 1;
                 while (cut > 1 && ctx.measureText(line.slice(0, cut)).width > width) cut--;
                 out.push(line.slice(0, cut));

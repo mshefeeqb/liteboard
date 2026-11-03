@@ -109,6 +109,11 @@ export class Renderer {
         this.settleTimer = window.setTimeout(() => this.invalidate(true), SETTLE_MS);
     }
 
+    setFont(fontFamily: string | undefined): void {
+        this.opts.fontFamily = fontFamily;
+        this.invalidate(true);
+    }
+
     /** Schedules a redraw of the live layer, and of the static one if asked. */
     invalidate(staticToo = false): void {
         if (staticToo) this.staticDirty = true;

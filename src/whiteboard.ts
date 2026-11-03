@@ -5,7 +5,9 @@ import { decodeScene, encodeScene } from './model/codec';
 import { elementBounds, nanoid, round1, unionRect } from './model/geometry';
 import { History } from './model/history';
 import { Store } from './model/store';
+import { inkColor } from './render/color';
 import { NOTE_SIZE, NOTE_TEXT } from './render/draw';
+import { LASER_CURSOR, penCursor } from './cursors';
 import { Renderer } from './render/renderer';
 import { RemoteLayer } from './live';
 import { TextEditor } from './text-editor';
@@ -111,6 +113,9 @@ export interface WhiteboardEvents {
     load: { boardId: string | undefined };
     readOnly: boolean;
     theme: Theme;
+    /** The set of tools on offer changed (setTools). */
+    tools: ToolName[];
+    font: string | undefined;
     /** Unsaved activity (strokes being drawn, laser, pointer) to forward. */
     live: LiveEvent;
 }
@@ -163,6 +168,8 @@ export class Whiteboard {
     private lastPointerType = 'mouse';
     private spaceDown = false;
     private lastTap = { time: 0, x: 0, y: 0 };
+    private cursorZoom = 0;
+    private underlayTimer = 0;
 
     constructor(
         container: HTMLElement,
@@ -196,7 +203,6 @@ export class Whiteboard {
             u.left = '0';
             u.top = '0';
             u.transformOrigin = '0 0';
-            u.willChange = 'transform';
             root.appendChild(opts.underlay);
         }
 
@@ -223,7 +229,7 @@ export class Whiteboard {
             camera: () => this.cam,
             style: () => this.currentStyle,
             theme: () => this.themeName,
-            fontFamily: opts.fontFamily,
+            fontFamily: () => this.opts.fontFamily,
             hide: (id) => {
                 if (id) this.renderer.hidden.add(id);
                 else this.renderer.hidden.clear();
@@ -274,6 +280,16 @@ export class Whiteboard {
         this.bindInput();
         this.resizeObserver = new ResizeObserver(() => this.measure());
         this.resizeObserver.observe(root);
+        // Text drawn before its font arrived used a fallback; redraw once it has.
+        if (typeof document !== 'undefined' && document.fonts) {
+            const redraw = () => {
+                this.renderer.invalidate(true);
+                this.editor.layout();
+            };
+            document.fonts.addEventListener('loadingdone', redraw);
+            this.cleanups.push(() => document.fonts.removeEventListener('loadingdone', redraw));
+            if (opts.fontFamily) void document.fonts.load(`20px ${opts.fontFamily}`).then(redraw, () => {});
+        }
         this.measure();
         this.updateCursor();
         this.applyCamera();
@@ -315,6 +331,48 @@ export class Whiteboard {
         this.events.emit('tool', name);
     }
 
+    /**
+     * Changes which tools are offered, e.g. from an app's settings. The
+     * built-in toolbar follows. If the current tool goes away, the first
+     * remaining one is selected.
+     */
+    setTools(tools: readonly ToolName[]): void {
+        const next = tools.filter((t) => ALL_TOOLS.includes(t));
+        if (next.length === 0) return;
+        this.toolList = next;
+        if (!next.includes(this.toolName)) {
+            const fallback = this.readOnlyFlag ? next.find((t) => VIEW_TOOLS.has(t)) : next[0];
+            this.cancelToolAction();
+            this.tool.deactivate?.();
+            this.toolName = fallback ?? next[0];
+            this.setSelection([]);
+            this.updateCursor();
+            this.events.emit('tool', this.toolName);
+        }
+        this.events.emit('tools', [...next]);
+    }
+
+    /** Turns pinch zoom, two-finger pan and wheel behaviour on or off. */
+    setGestures(gestures: Gestures): void {
+        this.gestures = { ...this.gestures, ...gestures };
+    }
+
+    get font(): string | undefined {
+        return this.opts.fontFamily;
+    }
+
+    /** Switches the font for all text and notes (see `loadFont`). */
+    setFont(fontFamily: string | undefined): void {
+        this.editor.commit();
+        this.opts.fontFamily = fontFamily;
+        this.renderer.setFont(fontFamily);
+        this.editor.layout();
+        if (fontFamily && typeof document !== 'undefined' && document.fonts) {
+            void document.fonts.load(`20px ${fontFamily}`).then(() => this.renderer.invalidate(true), () => {});
+        }
+        this.events.emit('font', fontFamily);
+    }
+
     get style(): Style {
         return this.currentStyle;
     }
@@ -344,6 +402,7 @@ export class Whiteboard {
             }
             if (updates.length > 0) this.history.commit(updates);
         }
+        this.updateCursor();
         this.events.emit('style', this.currentStyle);
     }
 
@@ -357,6 +416,7 @@ export class Whiteboard {
         this.renderer.theme = theme;
         this.renderer.invalidate(true);
         this.editor.layout();
+        this.updateCursor();
         this.events.emit('theme', theme);
     }
 
@@ -520,6 +580,7 @@ export class Whiteboard {
 
     /** Saves open text, then removes the board and every listener. */
     destroy(): void {
+        clearTimeout(this.underlayTimer);
         this.editor.commit();
         this.resizeObserver.disconnect();
         this.cleanups.forEach((fn) => fn());
@@ -554,7 +615,9 @@ export class Whiteboard {
             get theme() {
                 return wb.themeName;
             },
-            fontFamily: this.opts.fontFamily,
+            get fontFamily() {
+                return wb.opts.fontFamily;
+            },
             get pointerType() {
                 return wb.lastPointerType;
             },
@@ -631,15 +694,50 @@ export class Whiteboard {
 
     private applyCamera(): void {
         this.renderer.setCamera(this.cam);
+        // The pen cursor shows the stroke's on-screen size.
+        if (this.cursorZoom !== this.cam.zoom) {
+            this.cursorZoom = this.cam.zoom;
+            if (this.tools.size > 0) this.updateCursor();
+        }
         if (this.underlay) {
+            const u = this.underlay.style;
             const { x, y, zoom } = this.cam;
-            this.underlay.style.transform = `translate(${-x * zoom}px, ${-y * zoom}px) scale(${zoom})`;
+            u.transform = `translate(${-x * zoom}px, ${-y * zoom}px) scale(${zoom})`;
+            // Smooth while moving (the browser scales a cached picture), sharp
+            // once still (it re-renders the text and images at the new size).
+            u.willChange = 'transform';
+            clearTimeout(this.underlayTimer);
+            this.underlayTimer = window.setTimeout(() => {
+                u.willChange = 'auto';
+            }, 150);
         }
         this.editor.layout();
     }
 
     private updateCursor(): void {
-        this.renderer.liveCanvas.style.cursor = this.spaceDown ? 'grab' : this.tool.cursor;
+        this.renderer.liveCanvas.style.cursor = this.cursorFor();
+    }
+
+    private cursorFor(): string {
+        if (this.panPointer) return 'grabbing';
+        if (this.spaceDown) return 'grab';
+        switch (this.toolName) {
+            case 'pen':
+                // The real size and colour of the ink at this zoom.
+                return penCursor(
+                    inkColor(this.currentStyle.color, this.themeName),
+                    (this.currentStyle.strokeWidth * 2 + 1) * this.cam.zoom,
+                );
+            case 'laser':
+                return LASER_CURSOR;
+            case 'eraser':
+                // The eraser draws its own ring.
+                return 'none';
+            case 'hand':
+                return this.toolPointer !== null ? 'grabbing' : 'grab';
+            default:
+                return this.tool.cursor;
+        }
     }
 
     private cancelToolAction(): void {
@@ -744,6 +842,7 @@ export class Whiteboard {
             (this.readOnlyFlag && !VIEW_TOOLS.has(this.toolName));
         if (wantsPan) {
             this.panPointer = { id: e.pointerId, last: screen };
+            this.updateCursor();
             return;
         }
         if (e.button !== 0 && e.button !== -1) return;
@@ -762,6 +861,7 @@ export class Whiteboard {
         }
         this.toolPointer = e.pointerId;
         this.tool.down(p);
+        if (this.toolName === 'hand') this.updateCursor();
     };
 
     private onPointerMove = (e: PointerEvent) => {
@@ -793,7 +893,7 @@ export class Whiteboard {
         if (e.pointerType === 'mouse' && e.buttons === 0 && this.tool.hover) {
             this.lastPointerType = 'mouse';
             const cursor = this.tool.hover(this.toolPointerFrom(e));
-            this.renderer.liveCanvas.style.cursor = cursor ?? this.tool.cursor;
+            this.renderer.liveCanvas.style.cursor = cursor ?? this.cursorFor();
         }
     };
 
@@ -805,12 +905,14 @@ export class Whiteboard {
         }
         if (this.panPointer?.id === e.pointerId) {
             this.panPointer = null;
+            this.updateCursor();
             return;
         }
         if (e.pointerId === this.toolPointer) {
             this.toolPointer = null;
             if (e.type === 'pointercancel') this.tool.cancel();
             else this.tool.up(this.toolPointerFrom(e));
+            if (this.toolName === 'hand') this.updateCursor();
         }
     };
 

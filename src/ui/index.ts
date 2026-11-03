@@ -12,16 +12,31 @@ export interface ToolbarOptions {
     widths?: number[];
     /** Sticky note paper colours offered. */
     noteColors?: string[];
+    /** Undo and redo buttons. Default true. */
+    undo?: boolean;
+    /** Colour and width button. Default true. */
+    style?: boolean;
+    /** Zoom out, zoom level (tap to reset) and zoom in. Default false. */
+    zoom?: boolean;
+    /** A clear-board button that asks for a second tap. Default false. */
+    clear?: boolean;
     /** Tooltips and accessible names, e.g. for translation. */
-    labels?: Partial<Record<ToolName | 'undo' | 'redo' | 'style', string>>;
+    labels?: Partial<Record<LabelKey, string>>;
 }
+
+type LabelKey = ToolName | 'undo' | 'redo' | 'style' | 'zoomIn' | 'zoomOut' | 'zoomReset' | 'clear' | 'clearConfirm';
 
 export interface Toolbar {
     element: HTMLElement;
+    /** Changes options while the board is running; the toolbar redraws. */
+    update(options: Partial<ToolbarOptions>): void;
     destroy(): void;
 }
 
-const ICONS: Record<ToolName | 'undo' | 'redo', string> = {
+const ICONS: Record<ToolName | 'undo' | 'redo' | 'zoomIn' | 'zoomOut' | 'clear', string> = {
+    zoomIn: 'M5 12h14M12 5v14',
+    zoomOut: 'M5 12h14',
+    clear: 'M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6',
     select: 'M6 3l12 8-5.5 1.3L9.5 18z',
     hand: 'M8 13V6a1.5 1.5 0 013 0v5m0-6.5a1.5 1.5 0 013 0V11m0-4.5a1.5 1.5 0 013 0V14a6 6 0 01-6 6h-.5a6 6 0 01-5-2.7L4.6 14a1.5 1.5 0 012.6-1.5L8 14',
     pen: 'M4 20l1.2-4.2L16 5l3 3L8.2 18.8zM14 7l3 3',
@@ -37,7 +52,12 @@ const ICONS: Record<ToolName | 'undo' | 'redo', string> = {
     redo: 'M15 14l5-5-5-5M20 9H9.5a5.5 5.5 0 000 11H13',
 };
 
-const LABELS: Record<ToolName | 'undo' | 'redo' | 'style', string> = {
+const LABELS: Record<LabelKey, string> = {
+    zoomIn: 'Zoom in',
+    zoomOut: 'Zoom out',
+    zoomReset: 'Reset zoom',
+    clear: 'Clear board',
+    clearConfirm: 'Tap again to clear the board',
     select: 'Select (V)',
     hand: 'Pan (H)',
     pen: 'Pen (P)',
@@ -97,12 +117,10 @@ function button(label: string, html: string, onClick: () => void): HTMLButtonEle
 }
 
 /** Adds the built-in toolbar to a board. */
-export function mountToolbar(wb: Whiteboard, options: ToolbarOptions = {}): Toolbar {
+export function mountToolbar(wb: Whiteboard, initial: ToolbarOptions = {}): Toolbar {
     injectStyles();
-    const labels = { ...LABELS, ...options.labels };
-    const colors = options.colors ?? DEFAULT_COLORS;
-    const widths = options.widths ?? DEFAULT_WIDTHS;
-    const noteColors = options.noteColors ?? DEFAULT_NOTE_COLORS;
+    let options: ToolbarOptions = { ...initial };
+    const labels = () => ({ ...LABELS, ...options.labels });
     const notesInFocus = () =>
         wb.toolId === 'note' || wb.selection.some((id) => wb.store.get(id)?.t === 'note');
 
@@ -115,48 +133,93 @@ export function mountToolbar(wb: Whiteboard, options: ToolbarOptions = {}): Tool
     wb.element.append(bar, panel);
 
     const toolButtons = new Map<ToolName, HTMLButtonElement>();
-    let styleBtn: HTMLButtonElement;
-    let undoBtn: HTMLButtonElement;
-    let redoBtn: HTMLButtonElement;
+    let styleBtn: HTMLButtonElement | null = null;
+    let undoBtn: HTMLButtonElement | null = null;
+    let redoBtn: HTMLButtonElement | null = null;
+    let zoomLabel: HTMLButtonElement | null = null;
+    let clearArmed = 0;
 
     const closePanel = () => {
         panel.hidden = true;
         styleBtn?.setAttribute('aria-expanded', 'false');
     };
+    const separator = () => Object.assign(document.createElement('span'), { className: 'lb-sep' });
 
     const render = () => {
+        const l = labels();
         bar.textContent = '';
         toolButtons.clear();
+        styleBtn = undoBtn = redoBtn = zoomLabel = null;
         const tools = wb.availableTools.filter((t) => !wb.readOnly || VIEW_TOOLS.has(t));
         for (const t of tools) {
-            const b = button(labels[t], icon(ICONS[t]), () => wb.setTool(t));
+            const b = button(l[t], icon(ICONS[t]), () => wb.setTool(t));
             toolButtons.set(t, b);
             bar.appendChild(b);
         }
-        if (!wb.readOnly) {
-            bar.appendChild(Object.assign(document.createElement('span'), { className: 'lb-sep' }));
-            styleBtn = button(labels.style, '<span class="lb-dot"></span>', () => {
+        const editing = !wb.readOnly;
+        const extras: HTMLElement[] = [];
+        if (editing && options.style !== false) {
+            const sb = button(l.style, '<span class="lb-dot"></span>', () => {
                 panel.hidden = !panel.hidden;
-                styleBtn.setAttribute('aria-expanded', String(!panel.hidden));
+                sb.setAttribute('aria-expanded', String(!panel.hidden));
                 if (!panel.hidden) {
                     renderPanel();
                     layout();
                 }
             });
-            undoBtn = button(labels.undo, icon(ICONS.undo), () => wb.undo());
-            redoBtn = button(labels.redo, icon(ICONS.redo), () => wb.redo());
-            bar.append(styleBtn, undoBtn, redoBtn);
-        } else {
-            closePanel();
+            styleBtn = sb;
+            extras.push(sb);
         }
+        if (editing && options.undo !== false) {
+            undoBtn = button(l.undo, icon(ICONS.undo), () => wb.undo());
+            redoBtn = button(l.redo, icon(ICONS.redo), () => wb.redo());
+            extras.push(undoBtn, redoBtn);
+        }
+        if (options.zoom) {
+            zoomLabel = button(l.zoomReset, '', () => wb.zoomTo(1));
+            zoomLabel.classList.add('lb-zoom');
+            extras.push(
+                button(l.zoomOut, icon(ICONS.zoomOut), () => wb.zoomTo(wb.camera.zoom / 1.25)),
+                zoomLabel,
+                button(l.zoomIn, icon(ICONS.zoomIn), () => wb.zoomTo(wb.camera.zoom * 1.25)),
+            );
+        }
+        if (editing && options.clear) {
+            // Two taps, so a stray touch can't wipe the board.
+            const cb = button(l.clear, icon(ICONS.clear), () => {
+                if (clearArmed) {
+                    clearTimeout(clearArmed);
+                    clearArmed = 0;
+                    cb.classList.remove('lb-armed');
+                    cb.title = l.clear;
+                    wb.clear();
+                    return;
+                }
+                cb.classList.add('lb-armed');
+                cb.title = l.clearConfirm;
+                cb.setAttribute('aria-label', l.clearConfirm);
+                clearArmed = window.setTimeout(() => {
+                    clearArmed = 0;
+                    cb.classList.remove('lb-armed');
+                    cb.title = l.clear;
+                    cb.setAttribute('aria-label', l.clear);
+                }, 3000);
+            });
+            extras.push(cb);
+        }
+        if (extras.length > 0 && tools.length > 0) bar.appendChild(separator());
+        bar.append(...extras);
+        if (!styleBtn) closePanel();
+        bar.hidden = tools.length + extras.length === 0;
         sync();
+        layout();
     };
 
     const renderPanel = () => {
         panel.textContent = '';
         const swatches = document.createElement('div');
         swatches.className = 'lb-row';
-        for (const c of colors) {
+        for (const c of options.colors ?? DEFAULT_COLORS) {
             const shown = inkColor(c, wb.theme);
             const b = button(c, `<span class="lb-swatch" style="background:${shown}"></span>`, () => {
                 wb.setStyle({ color: c });
@@ -167,7 +230,7 @@ export function mountToolbar(wb: Whiteboard, options: ToolbarOptions = {}): Tool
         }
         const sizes = document.createElement('div');
         sizes.className = 'lb-row';
-        for (const w of widths) {
+        for (const w of options.widths ?? DEFAULT_WIDTHS) {
             const b = button(`Width ${w}`, `<span class="lb-width" style="height:${Math.min(12, w * 2 + 1)}px"></span>`, () => {
                 wb.setStyle({ strokeWidth: w });
                 renderPanel();
@@ -177,7 +240,7 @@ export function mountToolbar(wb: Whiteboard, options: ToolbarOptions = {}): Tool
         }
         const papers = document.createElement('div');
         papers.className = 'lb-row';
-        for (const c of noteColors) {
+        for (const c of options.noteColors ?? DEFAULT_NOTE_COLORS) {
             const b = button(`Note ${c}`, `<span class="lb-swatch lb-paper" style="background:${c}"></span>`, () => {
                 wb.setStyle({ noteColor: c });
                 renderPanel();
@@ -192,14 +255,15 @@ export function mountToolbar(wb: Whiteboard, options: ToolbarOptions = {}): Tool
 
     const sync = () => {
         for (const [t, b] of toolButtons) b.setAttribute('aria-pressed', String(wb.toolId === t));
-        if (!wb.readOnly) {
+        if (styleBtn) {
             const dot = styleBtn.firstElementChild as HTMLElement;
             dot.style.background =
                 wb.toolId === 'note' ? wb.style.noteColor : inkColor(wb.style.color, wb.theme);
             dot.style.boxShadow = `0 0 0 ${Math.min(4, wb.style.strokeWidth)}px var(--lb-ring)`;
-            undoBtn.disabled = !wb.canUndo;
-            redoBtn.disabled = !wb.canRedo;
         }
+        if (undoBtn) undoBtn.disabled = !wb.canUndo;
+        if (redoBtn) redoBtn.disabled = !wb.canRedo;
+        if (zoomLabel) zoomLabel.textContent = `${Math.round(wb.camera.zoom * 100)}%`;
         bar.classList.toggle('lb-dark', wb.theme === 'dark');
         panel.classList.toggle('lb-dark', wb.theme === 'dark');
     };
@@ -228,7 +292,11 @@ export function mountToolbar(wb: Whiteboard, options: ToolbarOptions = {}): Tool
         wb.on('style', sync),
         wb.on('history', sync),
         wb.on('theme', sync),
+        wb.on('camera', () => {
+            if (zoomLabel) sync();
+        }),
         wb.on('readOnly', render),
+        wb.on('tools', render),
         wb.on('load', sync),
     ];
     const onOutside = (e: PointerEvent) => {
@@ -239,13 +307,18 @@ export function mountToolbar(wb: Whiteboard, options: ToolbarOptions = {}): Tool
     document.addEventListener('pointerdown', onOutside, true);
     const ro = new ResizeObserver(layout);
     ro.observe(wb.element);
-    layout();
     render();
 
     return {
         element: bar,
+        update(next) {
+            options = { ...options, ...next };
+            closePanel();
+            render();
+        },
         destroy() {
             offs.forEach((off) => off());
+            clearTimeout(clearArmed);
             document.removeEventListener('pointerdown', onOutside, true);
             ro.disconnect();
             bar.remove();

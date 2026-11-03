@@ -15,7 +15,7 @@ import {
     type Whiteboard as WhiteboardInstance,
     type WhiteboardOptions,
 } from 'liteboard';
-import { mountToolbar, type ToolbarOptions } from 'liteboard/ui';
+import { mountToolbar, type Toolbar, type ToolbarOptions } from 'liteboard/ui';
 
 export interface WhiteboardProps extends Omit<WhiteboardOptions, 'underlay' | 'style'> {
     className?: string;
@@ -35,9 +35,10 @@ export interface WhiteboardProps extends Omit<WhiteboardOptions, 'underlay' | 's
 const useIsoLayoutEffect = typeof window === 'undefined' ? useEffect : useLayoutEffect;
 
 /**
- * The board, sized to its parent. `tools`, `style`, `gestures` and the other
- * options are read once; `theme`, `readOnly` and `boardId` follow props.
- * Changing `boardId` switches boards (pass the new board's `scene` with it).
+ * The board, sized to its parent. `theme`, `readOnly`, `boardId`, `tools`,
+ * `toolbar`, `fontFamily` and `gestures` follow props, so features can be
+ * switched on and off live. Other options are read once. Changing `boardId`
+ * switches boards (pass the new board's `scene` with it).
  */
 export const Whiteboard = forwardRef<WhiteboardInstance | null, WhiteboardProps>(
     function Whiteboard(props, ref) {
@@ -45,6 +46,7 @@ export const Whiteboard = forwardRef<WhiteboardInstance | null, WhiteboardProps>
         const latest = useRef(props);
         latest.current = props;
         const [wb, setWb] = useState<WhiteboardInstance | null>(null);
+        const toolbarRef = useRef<Toolbar | null>(null);
         const [underlayEl] = useState(() =>
             typeof document === 'undefined' ? null : document.createElement('div'),
         );
@@ -72,6 +74,7 @@ export const Whiteboard = forwardRef<WhiteboardInstance | null, WhiteboardProps>
                 toolbar === false
                     ? null
                     : mountToolbar(board, typeof toolbar === 'object' ? toolbar : {});
+            toolbarRef.current = bar;
             const off = board.on('change', (e) => latest.current.onChange?.(e, board));
             loadedBoard.current = options.boardId;
             setWb(board);
@@ -79,6 +82,7 @@ export const Whiteboard = forwardRef<WhiteboardInstance | null, WhiteboardProps>
             return () => {
                 off();
                 bar?.destroy();
+                toolbarRef.current = null;
                 board.destroy();
                 setWb(null);
             };
@@ -91,6 +95,28 @@ export const Whiteboard = forwardRef<WhiteboardInstance | null, WhiteboardProps>
         useEffect(() => {
             if (wb) wb.setReadOnly(props.readOnly ?? false);
         }, [wb, props.readOnly]);
+
+        // Live feature switches. Compare by value: inline arrays and objects
+        // are new on every render.
+        const toolsKey = props.tools?.join(',');
+        useEffect(() => {
+            if (wb && props.tools) wb.setTools(props.tools);
+        }, [wb, toolsKey]);
+
+        const toolbarKey = JSON.stringify(props.toolbar ?? true);
+        useEffect(() => {
+            const t = props.toolbar;
+            if (wb && toolbarRef.current && typeof t === 'object') toolbarRef.current.update(t);
+        }, [wb, toolbarKey]);
+
+        useEffect(() => {
+            if (wb && wb.font !== props.fontFamily) wb.setFont(props.fontFamily);
+        }, [wb, props.fontFamily]);
+
+        const gesturesKey = JSON.stringify(props.gestures ?? {});
+        useEffect(() => {
+            if (wb && props.gestures) wb.setGestures(props.gestures);
+        }, [wb, gesturesKey]);
 
         useEffect(() => {
             if (!wb || loadedBoard.current === props.boardId) return;

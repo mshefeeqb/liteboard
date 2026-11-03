@@ -18,7 +18,7 @@ interface EditorHost {
     camera(): Camera;
     style(): Style;
     theme(): Theme;
-    fontFamily: string | undefined;
+    fontFamily(): string | undefined;
     /** Hides the element being edited from the canvas, or shows it again. */
     hide(id: string | null): void;
 }
@@ -92,7 +92,7 @@ export class TextEditor {
         const size = this.fontSize * cam.zoom;
         ta.style.left = `${p.x}px`;
         ta.style.top = `${p.y}px`;
-        ta.style.font = textFont(size, this.host.fontFamily);
+        ta.style.font = textFont(size, this.host.fontFamily());
         ta.style.lineHeight = String(LINE_HEIGHT);
         if (this.note) {
             // Cover the note: same paper, same padding, text wraps inside.
@@ -133,7 +133,7 @@ export class TextEditor {
         if (note) {
             if ((note.txt ?? '') === txt) return;
             // The note grows to fit its text; it never shrinks under the user.
-            const lines = wrapText(txt, this.fontSize, note.w - NOTE_PADDING * 2, this.host.fontFamily);
+            const lines = wrapText(txt, this.fontSize, note.w - NOTE_PADDING * 2, this.host.fontFamily());
             const needed = lines.length * this.fontSize * LINE_HEIGHT + NOTE_PADDING * 2;
             this.host.history.commit([{ ...note, txt, h: Math.max(note.h, Math.ceil(needed)) }]);
             return;
@@ -144,7 +144,7 @@ export class TextEditor {
             return;
         }
         if (base && base.txt === txt) return;
-        const { w, h } = measureText(txt, this.fontSize, this.host.fontFamily);
+        const { w, h } = measureText(txt, this.fontSize, this.host.fontFamily());
         this.host.history.commit([
             {
                 ...(base ?? {}),

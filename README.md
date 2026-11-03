@@ -3,7 +3,7 @@
 A lightweight, fast whiteboard you can embed in any web app. Built for slow
 networks and low-end tablets and phones. MIT licensed.
 
-- **Small:** about 15 KB brotli for the core, 18 KB with the toolbar and 5 KB
+- **Small:** about 16 KB brotli for the core, 19 KB with the toolbar and 5 KB
   more for live sync,
   including its one dependency
   ([perfect-freehand](https://github.com/steveruizok/perfect-freehand)).
@@ -90,6 +90,94 @@ component is marked `'use client'` for the Next.js app router.
 | `maxPixelRatio` | `2` (`1.5` on ≤ 2 GB devices) | Caps canvas sharpness. `1.5` saves about 44% canvas memory on Retina screens. |
 | `keyboard` | `true` | Shortcuts while the board has focus. |
 
+## Choosing features
+
+Every tool, toolbar button and gesture can be switched on or off, at start or
+while the board is running. Start from a preset and override what you need:
+
+```ts
+import { createWhiteboard, presets } from 'liteboard';
+import { mountToolbar } from 'liteboard/ui';
+
+const wb = createWhiteboard(el, { ...presets.teaching, gestures: { pinchZoom: false } });
+const toolbar = mountToolbar(wb, { undo: true, style: true, zoom: false, clear: true });
+
+// Later, e.g. from your app's settings:
+wb.setTools(['pen', 'eraser', 'laser']);
+wb.setGestures({ pinchZoom: true });
+toolbar.update({ zoom: true });
+```
+
+| Preset | Tools |
+| --- | --- |
+| `full` | everything |
+| `teaching` | select, pan, pen (thin by default), eraser, line, arrow, rectangle, ellipse, text, sticky note, laser |
+| `simple` | pen, eraser, laser: for phones and young learners |
+| `viewer` | pan and laser, read-only |
+
+| Toolbar option | Default | |
+| --- | --- | --- |
+| `style` | `true` | Colour, width and note-colour panel |
+| `undo` | `true` | Undo and redo buttons |
+| `zoom` | `false` | Zoom out, level (tap to reset), zoom in |
+| `clear` | `false` | Clear board, which asks for a second tap |
+| `colors`, `widths`, `noteColors` | built in | Choices offered in the panel |
+| `labels` | English | Tooltips, e.g. for translation |
+| `position` | `'auto'` | `'left'`, `'bottom'`, or auto (bottom on narrow boards) |
+
+In React, `tools`, `toolbar`, `gestures` and `fontFamily` props update live.
+The demo's **Features** button lets you try every switch and copy the
+resulting config.
+
+## Content under the board
+
+Pass any element as `underlay` (React: any JSX): rendered Markdown, KaTeX
+maths, HTML, images or PDF pages. It gets the same camera transform as the
+strokes, so pinch zoom and panning keep every stroke exactly where it was
+drawn on the content. It is redrawn sharp once the zoom settles.
+
+```tsx
+<Whiteboard
+    underlay={<ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>{lesson}</ReactMarkdown>}
+    gestures={{ pinchZoom: true, twoFingerPan: true }}
+/>
+```
+
+- **Not interactive:** the content sits under the drawing surface, so links
+  and buttons in it don't respond.
+- **Sizing:** give it a fixed width (e.g. `width: 800px`), so it lays out
+  the same on every screen and strokes land on the same words for everyone.
+- **Exporting:** for a PNG that includes the content, draw it yourself in
+  `exportPNG({ drawUnderlay })`, e.g. with html2canvas.
+
+## Fonts
+
+Nothing is bundled into the code; a font downloads only if you ask for it.
+
+**Excalifont**, Excalidraw's hand-drawn font, ships with this package:
+`liteboard/fonts/Excalifont-Regular.woff2` (52 KB; Latin, Greek, Cyrillic),
+with its licence in `liteboard/fonts/OFL.txt`. Serve the file from your app:
+
+```ts
+import { fonts, loadFont } from 'liteboard';
+
+// Vite: import url from 'liteboard/fonts/Excalifont-Regular.woff2?url';
+// Next.js or anything else: copy the file to /public/fonts/.
+wb.setFont(await loadFont({ ...fonts.excalifont, url: '/fonts/Excalifont-Regular.woff2' }));
+```
+
+| Font | Good for | Comes from |
+| --- | --- | --- |
+| `fonts.excalifont` | The Excalidraw look | this package (self-hosted) |
+| `fonts.kalam` | Handwriting with **Devanagari** (Hindi, Marathi) | Google Fonts |
+| `fonts.patrickHand` | Very legible print handwriting | Google Fonts |
+| `fonts.caveat` | Casual marker style | Google Fonts |
+
+All are under the SIL Open Font License 1.1, which allows use in paid
+products. Keep `OFL.txt` with the font file and don't sell the font on its
+own. To mix fonts (e.g. Excalifont for English, Kalam for Hindi), load both
+and pass `fontStack(fonts.excalifont, fonts.kalam)` as `fontFamily`.
+
 ## API
 
 ```ts
@@ -97,7 +185,8 @@ wb.setTool('eraser'); wb.setStyle({ color: '#e03131', strokeWidth: 4 });
 wb.undo(); wb.redo(); wb.clear(); wb.deleteSelected(); wb.selectAll();
 wb.getElements(); wb.getScene(); wb.load(boardId, scene); wb.merge(remoteElements);
 wb.setCamera({ x, y, zoom }); wb.zoomTo(1.5); wb.zoomToContent();
-wb.setTheme('dark'); wb.setReadOnly(true);
+wb.setTheme('dark'); wb.setReadOnly(true); wb.setFont(fontFamily);
+wb.setTools(['pen', 'eraser']); wb.setGestures({ pinchZoom: false });
 await wb.exportPNG({ background: '#fff', drawUnderlay: (ctx, region) => {...} });
 wb.exportSVG();
 wb.on('change' | 'camera' | 'tool' | 'style' | 'selection' | 'history' | 'load' | 'theme' | 'readOnly', fn);

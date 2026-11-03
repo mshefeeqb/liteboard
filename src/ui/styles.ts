@@ -86,5 +86,8 @@ export const CSS = `
   border: 1px solid var(--lb-ring);
 }
 .lb-paper { border-radius: 4px; }
+.lb-toolbar[hidden] { display: none; }
+.lb-btn.lb-zoom { width: auto; min-width: var(--lb-size); padding: 0 6px; font-variant-numeric: tabular-nums; font-size: 12px; }
+.lb-btn.lb-armed { background: #e03131; color: #fff; }
 .lb-width { width: 22px; border-radius: 6px; background: currentColor; }
 `;

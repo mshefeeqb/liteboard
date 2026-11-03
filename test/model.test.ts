@@ -220,3 +220,13 @@ describe('tombstones', () => {
         expect(s.get('p')!.pts).toEqual([0, 0, 5, 5, 10, 0]);
     });
 });
+
+describe('presets', () => {
+    it('only name real tools', async () => {
+        const { presets } = await import('../src/presets');
+        const { ALL_TOOLS } = await import('../src/whiteboard');
+        for (const p of Object.values(presets) as { tools?: readonly string[] }[]) {
+            for (const t of p.tools ?? []) expect(ALL_TOOLS).toContain(t);
+        }
+    });
+});

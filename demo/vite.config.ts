@@ -6,6 +6,7 @@ const src = (p: string) => fileURLToPath(new URL(`../src/${p}`, import.meta.url)
 export default defineConfig({
     resolve: {
         alias: [
+            { find: /^liteboard\/fonts\/(.*)$/, replacement: fileURLToPath(new URL('../fonts/$1', import.meta.url)) },
             { find: /^liteboard\/ui$/, replacement: src('ui/index.ts') },
             { find: /^liteboard\/react$/, replacement: src('react/index.tsx') },
             { find: /^liteboard\/sync$/, replacement: src('sync/index.ts') },

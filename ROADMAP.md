@@ -7,8 +7,8 @@ low-end devices. This page tracks what is done and what is next.
 
 | Budget | Target | Now |
 | --- | --- | --- |
-| Core, gzip/brotli | ≤ 30 KB | 15.4 KB |
-| Core + toolbar | ≤ 45 KB | 17.9 KB |
+| Core, gzip/brotli | ≤ 30 KB | 16.1 KB |
+| Core + toolbar | ≤ 45 KB | 19.0 KB |
 | Sync client | ≤ 10 KB | 5.2 KB |
 | Idle CPU | none | no frames scheduled while idle |
 | Stored size of a handwritten stroke | small | about 100 bytes binary, 200 bytes JSON |
@@ -42,6 +42,12 @@ low-end devices. This page tracks what is done and what is next.
   - rooms and batched Postgres writes, acknowledged only after commit
   - compaction into snapshots
   - JWT access and a `/health` endpoint
+
+### Since Phase 2
+- Feature switches: presets, `setTools`, `setGestures`, toolbar options
+  (`style`, `undo`, `zoom`, `clear`) and `toolbar.update`, all live.
+- Optional fonts (`loadFont`, `fonts.excalifont`, Kalam, Patrick Hand,
+  Caveat) and cursors that show the pen's colour and size.
 
 ## Next
 
