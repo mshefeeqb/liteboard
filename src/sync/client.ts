@@ -13,7 +13,7 @@ import {
     type PeerUser,
 } from '../protocol';
 import type { Camera, ChangeEvent, Element, LiveEvent } from '../types';
-import { defaultOutbox, type OutboxEntry, type OutboxStore } from './outbox';
+import { defaultOutbox, MemoryOutbox, type OutboxEntry, type OutboxStore } from './outbox';
 
 /** What the sync client needs from a board. `Whiteboard` provides all of it. */
 export interface SyncTarget {
@@ -72,6 +72,8 @@ const CAMERA_MS = 100;
 const SILENCE_MS = 35_000;
 /** A connection attempt that hasn't opened by now is abandoned and retried. */
 const CONNECT_TIMEOUT_MS = 10_000;
+/** Saved changes from earlier visits are read for at most this long. */
+const OUTBOX_LOAD_TIMEOUT_MS = 3000;
 const MAX_OPS_PER_MESSAGE = 500;
 
 interface StrokeBuffer {
@@ -175,10 +177,27 @@ export class SyncClient {
             if (silent || stuck || closing) this.drop(ws);
         }, 1000) as unknown as number;
 
-        this.outbox
-            .all()
+        // Browser storage can stall (another tab holding the database, private
+        // modes); never let it keep the board from connecting.
+        let stalled = false;
+        Promise.race([
+            this.outbox.all(),
+            new Promise<OutboxEntry[]>((resolve) =>
+                setTimeout(() => {
+                    stalled = true;
+                    resolve([]);
+                }, OUTBOX_LOAD_TIMEOUT_MS),
+            ),
+        ])
             .catch(() => [] as OutboxEntry[])
             .then((saved) => {
+                if (stalled) {
+                    this.outbox = new MemoryOutbox();
+                    this.events.emit('error', {
+                        code: 'storage',
+                        message: 'Browser storage did not respond; unsaved changes are kept in memory only',
+                    });
+                }
                 // Unconfirmed changes from earlier visits go first, in order.
                 this.entries = [...saved, ...this.entries];
                 this.emitPending();
@@ -337,10 +356,22 @@ export class SyncClient {
     }
 
     private async onOpen(ws: WebSocket): Promise<void> {
-        this.attempts = 0;
         this.lastMessageAt = Date.now();
-        const token = await this.token();
+        let token: string;
+        try {
+            token = await this.token();
+        } catch (err) {
+            // Without a token the server would never let us in: report it and
+            // retry with backoff rather than sit on an idle connection.
+            this.events.emit('error', {
+                code: 'token',
+                message: err instanceof Error ? err.message : String(err),
+            });
+            this.drop(ws);
+            return;
+        }
         if (ws !== this.ws) return;
+        this.attempts = 0;
         this.uploadOtherBoards(token);
         this.join(token);
     }

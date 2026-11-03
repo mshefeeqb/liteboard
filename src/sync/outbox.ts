@@ -60,6 +60,7 @@ export class IndexedDbOutbox implements OutboxStore {
                 open.result.createObjectStore(STORE, { keyPath: ['boardId', 'clientId', 'cseq'] });
             open.onsuccess = () => resolve(open.result);
             open.onerror = () => reject(open.error);
+            open.onblocked = () => reject(new Error('IndexedDB open blocked'));
         });
     }
 

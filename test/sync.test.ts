@@ -203,3 +203,35 @@ describe('presenting', () => {
         await until(() => b.camera.x === 120 && b.camera.y === 340 && b.camera.zoom === 1.5, 8000, 'follow');
     });
 });
+
+describe('startup problems', () => {
+    it('reports a failing token and keeps retrying until it works', async () => {
+        const relay = await startRelay();
+        const a = new HeadlessBoard('tok');
+        let calls = 0;
+        const errors: string[] = [];
+        const c = client(relay, a, 'teacher', {
+            token: async () => {
+                calls++;
+                if (calls < 3) throw new Error('board-token 500');
+                return 'ok';
+            },
+        });
+        c.on('error', (e) => errors.push(`${e.code}: ${e.message}`));
+        await until(() => c.status === 'online', 15_000, 'online after token recovers');
+        expect(errors.filter((e) => e.startsWith('token'))).toEqual(['token: board-token 500', 'token: board-token 500']);
+    });
+
+    it('connects even if saved-change storage never answers', async () => {
+        const relay = await startRelay();
+        const a = new HeadlessBoard('stall');
+        const hanging = { all: () => new Promise<never>(() => {}), add: async () => {}, ack: async () => {} };
+        const c = client(relay, a, 'teacher', { outbox: hanging });
+        const errors: string[] = [];
+        c.on('error', (e) => errors.push(e.code));
+        await until(() => c.status === 'online', 10_000, 'online despite stalled storage');
+        expect(errors).toContain('storage');
+        a.draw('s1');
+        await until(() => c.pending === 0, 8000, 'ack');
+    });
+});
