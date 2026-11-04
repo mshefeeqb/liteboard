@@ -10,6 +10,8 @@ import { MemoryStorage, type BoardStorage } from './storage';
  *                           127.0.0.1 behind a reverse proxy on the same machine.
  *   DATABASE_URL            Postgres; without it changes live in memory only
  *   DATABASE_POOL_MAX       Postgres connections, default 10
+ *   DATABASE_MIGRATE        false = don't create the tables on start (they exist
+ *                           already and the relay's role may only use them)
  *   LITEBOARD_JWT_SECRET    HS256 secret; without it anyone may open any board
  */
 async function main() {
@@ -29,7 +31,7 @@ async function main() {
         p.on('error', (err) => log('postgres idle connection error', { err: String(err) }));
         pool = p;
         const pgStorage = new PostgresStorage(p);
-        await pgStorage.migrate();
+        if (process.env.DATABASE_MIGRATE !== 'false') await pgStorage.migrate();
         storage = pgStorage;
     } else {
         log('DATABASE_URL not set: boards are kept in memory and lost on restart');

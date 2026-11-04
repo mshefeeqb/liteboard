@@ -23,6 +23,20 @@ Everything is in [`deploy/`](deploy): `docker-compose.yml`, `Caddyfile`,
 | Security group | **80 and 443 from anywhere** (TCP). 22 from your own IP only, or no SSH and use Session Manager. **Never open 8787.** |
 | Address | Allocate an Elastic IP and attach it, so the address survives restarts |
 
+### Or on AWS Lightsail
+
+Lightsail is the simpler, fixed-price option: a monthly bundle with the
+public IP address and several TB of data transfer included.
+
+| Setting | Value |
+| --- | --- |
+| Platform / blueprint | Linux, **OS only → Ubuntu 24.04 LTS** (x86; the relay works on x86 and arm64) |
+| Plan | The 2 GB plan (dual-stack, with IPv4) to start |
+| Networking tab | IPv4 firewall: keep **SSH 22** (restrict it to your IP if you can) and **HTTP 80**, add **HTTPS 443**. Do the same under IPv6. Never open 8787. |
+| Static IP | Networking → *Create static IP* → attach it to the instance (free while attached) |
+
+Then continue with step 2. The rest is identical.
+
 ## 2. Point a domain at it
 
 Create an `A` record, e.g. `board.example.com` → the Elastic IP. Use a
@@ -46,7 +60,7 @@ sudo usermod -aG docker $USER && newgrp docker
 ## 4. Get the relay and configure it
 
 ```bash
-git clone --depth 1 --branch v0.1.3 https://github.com/mshefeeqb/liteboard.git && cd liteboard/server/deploy
+git clone --depth 1 --branch v0.1.4 https://github.com/mshefeeqb/liteboard.git && cd liteboard/server/deploy
 ```
 
 ```bash
@@ -61,6 +75,18 @@ Edit `relay.env`:
   *Database settings → SSL configuration*) to `certs/db-ca.crt` and keep
   `?sslmode=verify-full&sslrootcert=/certs/db-ca.crt` in the URL.
 - **`LITEBOARD_JWT_SECRET`**: the same secret your app signs board tokens with.
+- **Recommended: a database role for the relay only.** Create the tables
+  yourself (the `SCHEMA` in `src/postgres.ts`), then a login role that may
+  only use them, and set `DATABASE_MIGRATE=false`:
+  ```sql
+  create role liteboard_relay login password '<generated>';
+  grant usage on schema public to liteboard_relay;
+  grant select, insert, delete on liteboard_ops to liteboard_relay;
+  grant select, insert, update, delete on liteboard_snapshots to liteboard_relay;
+  ```
+  If the tables use row-level security, also add a policy for the role
+  (`for all to liteboard_relay using (true) with check (true)`). A leaked
+  relay password then exposes only the whiteboard tables.
 
 Then set the domain once (Compose reads `.env` on every command):
 
@@ -99,7 +125,7 @@ docker compose logs -f relay
 ## Updating
 
 ```bash
-git fetch --depth 1 origin tag v0.1.4 && git checkout v0.1.4 && docker compose up -d --build relay
+git fetch --depth 1 origin tag v0.1.5 && git checkout v0.1.5 && docker compose up -d --build relay
 ```
 
 The relay writes everything buffered and closes; clients reconnect within a
@@ -136,7 +162,7 @@ route every connection of a session to the same relay (see
 1. Install Node.js 22 and [Caddy](https://caddyserver.com/docs/install).
 2. Build the relay:
    ```bash
-   sudo git clone --depth 1 --branch v0.1.3 https://github.com/mshefeeqb/liteboard.git /opt/liteboard && cd /opt/liteboard && sudo npm run setup && sudo npm --prefix server run build
+   sudo git clone --depth 1 --branch v0.1.4 https://github.com/mshefeeqb/liteboard.git /opt/liteboard && cd /opt/liteboard && sudo npm run setup && sudo npm --prefix server run build
    ```
 3. Create the service user and settings:
    ```bash

@@ -29,6 +29,7 @@ PORT=8787 DATABASE_URL=postgres://user:pass@host/db LITEBOARD_JWT_SECRET=change-
 | `HOST` | all interfaces | Set `127.0.0.1` behind a reverse proxy on the same machine |
 | `DATABASE_URL` | none | Postgres. Without it, boards live in memory and are lost on restart (development only). Tables are created on start. |
 | `DATABASE_POOL_MAX` | `10` | Postgres connections |
+| `DATABASE_MIGRATE` | `true` | `false` skips creating the tables on start. Use it when you create them yourself and the relay connects as a role that may only use them. |
 | `LITEBOARD_JWT_SECRET` | none | HS256 secret for login tokens. Without it, anyone can open any board (development only). |
 
 For a production server (Docker or systemd, TLS with Caddy, AWS EC2), see
